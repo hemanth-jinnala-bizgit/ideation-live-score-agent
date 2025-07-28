@@ -107,92 +107,29 @@ with col1:
         - **Extras**: No Balls & Wides don't count as legal deliveries
         - **Byes**: Runs scored without bat, count as legal deliveries
         
-        **Manual Controls:**
-        - Use the buttons below for manual scoring
-        - 0-6: Regular runs, W: Wicket, WD: Wide, NB: No Ball
-        - B: Bye, LB: Leg Bye, Undo: Remove last ball
+        **Live Camera Controls:**
+        - Real-time gesture detection via webcam
+        - Hold gestures for 2 seconds to confirm
+        - Works on both local and cloud deployment
         """)
     
-    # Web Camera Gesture Detection
-    st.markdown("### 📹 Web Camera Gesture Detection")
+    # WebRTC Gesture Detection
+    st.markdown("### 📹 Live Gesture Detection")
     
-    camera_input = st.camera_input("Show your gesture to the camera")
-    
-    if camera_input is not None:
-        # Process the image for gesture detection
-        if GESTURE_AVAILABLE:
-            try:
-                import cv2
-                import mediapipe as mp
-                import numpy as np
-                from PIL import Image
-                from score_state import update_score
-                
-                # Convert the image
-                image = Image.open(camera_input)
-                image_array = np.array(image)
-                image_rgb = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
-                
-                # Process with MediaPipe
-                mp_hands = mp.solutions.hands
-                with mp_hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.5, max_num_hands=1) as hands:
-                    results = hands.process(cv2.cvtColor(image_rgb, cv2.COLOR_BGR2RGB))
-                    
-                    if results.multi_hand_landmarks:
-                        for hand_landmarks in results.multi_hand_landmarks:
-                            # Count fingers
-                            fingers = []
-                            # Thumb
-                            fingers.append(int(hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_TIP].x <
-                                            hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_IP].x))
-                            # Fingers
-                            for tip_id in [mp_hands.HandLandmark.INDEX_FINGER_TIP,
-                                         mp_hands.HandLandmark.MIDDLE_FINGER_TIP,
-                                         mp_hands.HandLandmark.RING_FINGER_TIP,
-                                         mp_hands.HandLandmark.PINKY_TIP]:
-                                tip = hand_landmarks.landmark[tip_id]
-                                dip = hand_landmarks.landmark[tip_id - 2]
-                                fingers.append(int(tip.y < dip.y))
-                            
-                            finger_count = sum(fingers)
-                            
-                            # Display detected gesture
-                            if finger_count == 0:
-                                st.success("🏏 Detected: WICKET!")
-                                if st.button("Confirm Wicket"):
-                                    update_score(0)
-                                    st.rerun()
-                            elif finger_count == 1:
-                                st.success("☝️ Detected: 1 RUN")
-                                if st.button("Confirm 1 Run"):
-                                    update_score(1)
-                                    st.rerun()
-                            elif finger_count == 2:
-                                st.success("✌️ Detected: 2 RUNS")
-                                if st.button("Confirm 2 Runs"):
-                                    update_score(2)
-                                    st.rerun()
-                            elif finger_count == 3:
-                                st.success("🤟 Detected: 3 RUNS")
-                                if st.button("Confirm 3 Runs"):
-                                    update_score(3)
-                                    st.rerun()
-                            elif finger_count == 4:
-                                st.success("🖖 Detected: 4 RUNS (Boundary)")
-                                if st.button("Confirm 4 Runs"):
-                                    update_score(4)
-                                    st.rerun()
-                            elif finger_count == 5:
-                                st.success("✋ Detected: 6 RUNS (Six!)")
-                                if st.button("Confirm 6 Runs"):
-                                    update_score(5)
-                                    st.rerun()
-                    else:
-                        st.info("👋 Show your hand gesture to the camera")
-            except Exception as e:
-                st.error(f"Gesture detection error: {e}")
-        else:
-            st.error("📹 Gesture detection not available")
+    try:
+        from webrtc_gesture import start_webrtc_gesture_detection
+        webrtc_ctx = start_webrtc_gesture_detection()
+        
+        st.markdown("""
+        **Gesture Instructions:**
+        - Hold gesture for 2 seconds to confirm
+        - 0 fingers: Wicket | 1-4 fingers: Runs | 5 fingers: Six
+        - 🤏 Pinch: Dot Ball | 👍 Thumbs Up: No Ball
+        """)
+        
+    except ImportError:
+        st.error("📹 WebRTC not available - gesture detection disabled")
+        st.info("This feature requires streamlit-webrtc for cloud deployment")
     
     # Quick action buttons
     st.markdown("### ⚡ Quick Actions")
