@@ -113,118 +113,105 @@ with col1:
         - B: Bye, LB: Leg Bye, Undo: Remove last ball
         """)
     
-    # Manual controls for scoring
-    st.markdown("### 🎮 Manual Scoring Controls")
+    # Web Camera Gesture Detection
+    st.markdown("### 📹 Web Camera Gesture Detection")
     
-    # Regular scoring buttons
-    score_col1, score_col2, score_col3, score_col4, score_col5, score_col6 = st.columns(6)
+    camera_input = st.camera_input("Show your gesture to the camera")
     
-    with score_col1:
-        if st.button("0", help="Dot Ball"):
-            from score_state import update_score
-            update_score("dot_ball")
-            st.rerun()
+    if camera_input is not None:
+        # Process the image for gesture detection
+        if GESTURE_AVAILABLE:
+            try:
+                import cv2
+                import mediapipe as mp
+                import numpy as np
+                from PIL import Image
+                from score_state import update_score
+                
+                # Convert the image
+                image = Image.open(camera_input)
+                image_array = np.array(image)
+                image_rgb = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
+                
+                # Process with MediaPipe
+                mp_hands = mp.solutions.hands
+                with mp_hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.5, max_num_hands=1) as hands:
+                    results = hands.process(cv2.cvtColor(image_rgb, cv2.COLOR_BGR2RGB))
+                    
+                    if results.multi_hand_landmarks:
+                        for hand_landmarks in results.multi_hand_landmarks:
+                            # Count fingers
+                            fingers = []
+                            # Thumb
+                            fingers.append(int(hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_TIP].x <
+                                            hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_IP].x))
+                            # Fingers
+                            for tip_id in [mp_hands.HandLandmark.INDEX_FINGER_TIP,
+                                         mp_hands.HandLandmark.MIDDLE_FINGER_TIP,
+                                         mp_hands.HandLandmark.RING_FINGER_TIP,
+                                         mp_hands.HandLandmark.PINKY_TIP]:
+                                tip = hand_landmarks.landmark[tip_id]
+                                dip = hand_landmarks.landmark[tip_id - 2]
+                                fingers.append(int(tip.y < dip.y))
+                            
+                            finger_count = sum(fingers)
+                            
+                            # Display detected gesture
+                            if finger_count == 0:
+                                st.success("🏏 Detected: WICKET!")
+                                if st.button("Confirm Wicket"):
+                                    update_score(0)
+                                    st.rerun()
+                            elif finger_count == 1:
+                                st.success("☝️ Detected: 1 RUN")
+                                if st.button("Confirm 1 Run"):
+                                    update_score(1)
+                                    st.rerun()
+                            elif finger_count == 2:
+                                st.success("✌️ Detected: 2 RUNS")
+                                if st.button("Confirm 2 Runs"):
+                                    update_score(2)
+                                    st.rerun()
+                            elif finger_count == 3:
+                                st.success("🤟 Detected: 3 RUNS")
+                                if st.button("Confirm 3 Runs"):
+                                    update_score(3)
+                                    st.rerun()
+                            elif finger_count == 4:
+                                st.success("🖖 Detected: 4 RUNS (Boundary)")
+                                if st.button("Confirm 4 Runs"):
+                                    update_score(4)
+                                    st.rerun()
+                            elif finger_count == 5:
+                                st.success("✋ Detected: 6 RUNS (Six!)")
+                                if st.button("Confirm 6 Runs"):
+                                    update_score(5)
+                                    st.rerun()
+                    else:
+                        st.info("👋 Show your hand gesture to the camera")
+            except Exception as e:
+                st.error(f"Gesture detection error: {e}")
+        else:
+            st.error("📹 Gesture detection not available")
     
-    with score_col2:
-        if st.button("1", help="1 Run"):
-            from score_state import update_score
-            update_score(1)
-            st.rerun()
+    # Quick action buttons
+    st.markdown("### ⚡ Quick Actions")
+    quick_col1, quick_col2, quick_col3 = st.columns(3)
     
-    with score_col3:
-        if st.button("2", help="2 Runs"):
-            from score_state import update_score
-            update_score(2)
-            st.rerun()
-    
-    with score_col4:
-        if st.button("3", help="3 Runs"):
-            from score_state import update_score
-            update_score(3)
-            st.rerun()
-    
-    with score_col5:
-        if st.button("4", help="4 Runs (Boundary)"):
-            from score_state import update_score
-            update_score(4)
-            st.rerun()
-    
-    with score_col6:
-        if st.button("6", help="6 Runs (Six)"):
-            from score_state import update_score
-            update_score(5)  # 5 fingers = 6 runs
-            st.rerun()
-    
-    # Extras and special buttons
-    extra_col1, extra_col2, extra_col3, extra_col4, extra_col5, extra_col6 = st.columns(6)
-    
-    with extra_col1:
-        if st.button("W", help="Wicket"):
-            from score_state import update_score
-            update_score(0)  # 0 fingers = wicket
-            st.rerun()
-    
-    with extra_col2:
-        if st.button("WD", help="Wide"):
-            from score_state import update_score
-            update_score("wide")
-            st.rerun()
-    
-    with extra_col3:
-        if st.button("NB", help="No Ball"):
-            from score_state import update_score
-            update_score("no_ball")
-            st.rerun()
-    
-    with extra_col4:
-        if st.button("B", help="Bye"):
-            from score_state import update_score
-            update_score("bye")
-            st.rerun()
-    
-    with extra_col5:
-        if st.button("LB", help="Leg Bye"):
-            from score_state import update_score
-            update_score("leg_bye")
-            st.rerun()
-    
-    with extra_col6:
-        if st.button("↩️ Undo", help="Undo Last Ball"):
+    with quick_col1:
+        if st.button("↩️ Undo Last Ball"):
             undo_last_ball()
             st.rerun()
     
-    # Match controls
-    st.markdown("### 🎮 Match Controls")
-    match_col1, match_col2 = st.columns(2)
-    
-    with match_col1:
-        if st.button("🔄 Reset Current Innings"):
+    with quick_col2:
+        if st.button("🔄 Reset Innings"):
             reset_match()
             st.rerun()
     
-    with match_col2:
+    with quick_col3:
         pass
     
-    # Camera controls
-    camera_col1, camera_col2 = st.columns(2)
-    
-    with camera_col1:
-        if GESTURE_AVAILABLE:
-            if st.button("📹 Start Gesture Detection", type="primary"):
-                if 'gesture_started' not in st.session_state:
-                    threading.Thread(target=run_gesture_controller, daemon=True).start()
-                    st.session_state['gesture_started'] = True
-                    st.success("✅ Gesture detection started! Check the camera window.")
-                else:
-                    st.info("Gesture detection is already running!")
-        else:
-            st.error("📹 Gesture detection unavailable (OpenCV not installed)")
-    
-    with camera_col2:
-        if GESTURE_AVAILABLE:
-            st.info("📱 Camera opens in separate window")
-        else:
-            st.info("📱 Use manual controls below for scoring")
+
 
 with col2:
     pass
