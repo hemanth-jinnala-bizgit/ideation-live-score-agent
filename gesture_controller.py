@@ -4,15 +4,16 @@ try:
     import mediapipe as mp
     from score_state import update_score, reset_gesture_flag
     OPENCV_AVAILABLE = True
+    mp_hands = mp.solutions.hands
+    mp_drawing = mp.solutions.drawing_utils
 except ImportError:
     OPENCV_AVAILABLE = False
+    mp_hands = None
+    mp_drawing = None
     def update_score(*args):
         pass
     def reset_gesture_flag():
         pass
-
-mp_hands = mp.solutions.hands
-mp_drawing = mp.solutions.drawing_utils
 
 def count_fingers(hand_landmarks):
     """Count fingers but exclude special gesture combinations"""
@@ -123,8 +124,8 @@ def detect_special_gestures(hand_landmarks):
         return None
 
 def run_gesture_controller():
-    if not OPENCV_AVAILABLE:
-        print("OpenCV not available - gesture detection disabled")
+    if not OPENCV_AVAILABLE or mp_hands is None:
+        print("OpenCV/MediaPipe not available - gesture detection disabled")
         return
     cap = cv2.VideoCapture(0)
     with mp_hands.Hands(min_detection_confidence=0.7,
