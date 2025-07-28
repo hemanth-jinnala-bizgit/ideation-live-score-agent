@@ -5,8 +5,16 @@
 import streamlit as st
 from score_state import get_score, reset_match, undo_last_ball, get_match_status, set_match_overs
 import threading
-from gesture_controller import run_gesture_controller
 import time
+
+# Try to import gesture controller, make it optional
+try:
+    from gesture_controller import run_gesture_controller
+    GESTURE_AVAILABLE = True
+except ImportError:
+    GESTURE_AVAILABLE = False
+    def run_gesture_controller():
+        pass
 
 st.set_page_config(
     page_title="Cricket Scoreboard - Gesture Control", 
@@ -46,7 +54,7 @@ if not st.session_state.match_started:
         team2 = st.selectbox("Select Team 2", available_teams, key="team2")
     
     with setup_col3:
-        overs = st.selectbox("Match Overs", [1,5, 10, 15, 20], index=3, key="overs")
+        overs = st.selectbox("Match Overs", [5, 10, 15, 20], index=3, key="overs")
     
     batting_first = st.radio("Who bats first?", [team1, team2], key="batting_first")
     
@@ -99,47 +107,124 @@ with col1:
         - **Extras**: No Balls & Wides don't count as legal deliveries
         - **Byes**: Runs scored without bat, count as legal deliveries
         
-        **Camera Window:**
-        - A separate OpenCV window will open for gesture detection
-        - Show your hand gestures to the camera
-        - Press 'Q' in the camera window to stop gesture detection
+        **Manual Controls:**
+        - Use the buttons below for manual scoring
+        - 0-6: Regular runs, W: Wicket, WD: Wide, NB: No Ball
+        - B: Bye, LB: Leg Bye, Undo: Remove last ball
         """)
     
-    # Manual controls for additional extras
-    st.markdown("### 🎮 Manual Controls")
+    # Manual controls for scoring
+    st.markdown("### 🎮 Manual Scoring Controls")
     
-    manual_col1, manual_col2, manual_col3 = st.columns(3)
+    # Regular scoring buttons
+    score_col1, score_col2, score_col3, score_col4, score_col5, score_col6 = st.columns(6)
     
-    with manual_col1:
+    with score_col1:
+        if st.button("0", help="Dot Ball"):
+            from score_state import update_score
+            update_score("dot_ball")
+            st.rerun()
+    
+    with score_col2:
+        if st.button("1", help="1 Run"):
+            from score_state import update_score
+            update_score(1)
+            st.rerun()
+    
+    with score_col3:
+        if st.button("2", help="2 Runs"):
+            from score_state import update_score
+            update_score(2)
+            st.rerun()
+    
+    with score_col4:
+        if st.button("3", help="3 Runs"):
+            from score_state import update_score
+            update_score(3)
+            st.rerun()
+    
+    with score_col5:
+        if st.button("4", help="4 Runs (Boundary)"):
+            from score_state import update_score
+            update_score(4)
+            st.rerun()
+    
+    with score_col6:
+        if st.button("6", help="6 Runs (Six)"):
+            from score_state import update_score
+            update_score(5)  # 5 fingers = 6 runs
+            st.rerun()
+    
+    # Extras and special buttons
+    extra_col1, extra_col2, extra_col3, extra_col4, extra_col5, extra_col6 = st.columns(6)
+    
+    with extra_col1:
+        if st.button("W", help="Wicket"):
+            from score_state import update_score
+            update_score(0)  # 0 fingers = wicket
+            st.rerun()
+    
+    with extra_col2:
+        if st.button("WD", help="Wide"):
+            from score_state import update_score
+            update_score("wide")
+            st.rerun()
+    
+    with extra_col3:
+        if st.button("NB", help="No Ball"):
+            from score_state import update_score
+            update_score("no_ball")
+            st.rerun()
+    
+    with extra_col4:
+        if st.button("B", help="Bye"):
+            from score_state import update_score
+            update_score("bye")
+            st.rerun()
+    
+    with extra_col5:
         if st.button("LB", help="Leg Bye"):
             from score_state import update_score
             update_score("leg_bye")
             st.rerun()
     
-    with manual_col2:
-        if st.button("🔄 Reset Match"):
+    with extra_col6:
+        if st.button("↩️ Undo", help="Undo Last Ball"):
+            undo_last_ball()
+            st.rerun()
+    
+    # Match controls
+    st.markdown("### 🎮 Match Controls")
+    match_col1, match_col2 = st.columns(2)
+    
+    with match_col1:
+        if st.button("🔄 Reset Current Innings"):
             reset_match()
             st.rerun()
     
-    with manual_col3:
-        if st.button("↩️ Undo Last Ball"):
-            undo_last_ball()
-            st.rerun()
+    with match_col2:
+        pass
     
     # Camera controls
     camera_col1, camera_col2 = st.columns(2)
     
     with camera_col1:
-        if st.button("📹 Start Gesture Detection", type="primary"):
-            if 'gesture_started' not in st.session_state:
-                threading.Thread(target=run_gesture_controller, daemon=True).start()
-                st.session_state['gesture_started'] = True
-                st.success("✅ Gesture detection started! Check the camera window.")
-            else:
-                st.info("Gesture detection is already running!")
+        if GESTURE_AVAILABLE:
+            if st.button("📹 Start Gesture Detection", type="primary"):
+                if 'gesture_started' not in st.session_state:
+                    threading.Thread(target=run_gesture_controller, daemon=True).start()
+                    st.session_state['gesture_started'] = True
+                    st.success("✅ Gesture detection started! Check the camera window.")
+                else:
+                    st.info("Gesture detection is already running!")
+        else:
+            st.error("📹 Gesture detection unavailable (OpenCV not installed)")
     
     with camera_col2:
-        st.info("📱 Camera opens in separate window")
+        if GESTURE_AVAILABLE:
+            st.info("📱 Camera opens in separate window")
+        else:
+            st.info("📱 Use manual controls below for scoring")
 
 with col2:
     pass

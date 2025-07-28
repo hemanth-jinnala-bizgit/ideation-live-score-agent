@@ -1,7 +1,15 @@
 #gesture_controller.py
-import cv2
-import mediapipe as mp
-from score_state import update_score, reset_gesture_flag
+try:
+    import cv2
+    import mediapipe as mp
+    from score_state import update_score, reset_gesture_flag
+    OPENCV_AVAILABLE = True
+except ImportError:
+    OPENCV_AVAILABLE = False
+    def update_score(*args):
+        pass
+    def reset_gesture_flag():
+        pass
 
 mp_hands = mp.solutions.hands
 mp_drawing = mp.solutions.drawing_utils
@@ -115,6 +123,9 @@ def detect_special_gestures(hand_landmarks):
         return None
 
 def run_gesture_controller():
+    if not OPENCV_AVAILABLE:
+        print("OpenCV not available - gesture detection disabled")
+        return
     cap = cv2.VideoCapture(0)
     with mp_hands.Hands(min_detection_confidence=0.7,
                         min_tracking_confidence=0.5,
