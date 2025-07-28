@@ -7,14 +7,8 @@ from score_state import get_score, reset_match, undo_last_ball, get_match_status
 import threading
 import time
 
-# Try to import gesture controller, make it optional
-try:
-    from gesture_controller import run_gesture_controller
-    GESTURE_AVAILABLE = True
-except ImportError:
-    GESTURE_AVAILABLE = False
-    def run_gesture_controller():
-        pass
+# Gesture detection will be handled inline
+GESTURE_AVAILABLE = True
 
 st.set_page_config(
     page_title="Cricket Scoreboard - Gesture Control", 
@@ -117,19 +111,96 @@ with col1:
     st.markdown("### 📹 Live Gesture Detection")
     
     try:
-        from webrtc_gesture import start_webrtc_gesture_detection
-        webrtc_ctx = start_webrtc_gesture_detection()
+        import streamlit_webrtc
+        from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
+        import cv2
+        import mediapipe as mp
+        from score_state import update_score, reset_gesture_flag
+        import time
+        
+        # MediaPipe setup
+        mp_hands = mp.solutions.hands
+        mp_drawing = mp.solutions.drawing_utils
+        
+        # Global variables
+        if 'last_gesture' not in st.session_state:
+            st.session_state.last_gesture = None
+            st.session_state.last_gesture_time = 0
+        
+        def count_fingers(hand_landmarks):
+            fingers = []
+            fingers.append(int(hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_TIP].x <
+                              hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_IP].x))
+            for tip_id in [mp_hands.HandLandmark.INDEX_FINGER_TIP,
+                           mp_hands.HandLandmark.MIDDLE_FINGER_TIP,
+                           mp_hands.HandLandmark.RING_FINGER_TIP,
+                           mp_hands.HandLandmark.PINKY_TIP]:
+                tip = hand_landmarks.landmark[tip_id]
+                dip = hand_landmarks.landmark[tip_id - 2]
+                fingers.append(int(tip.y < dip.y))
+            return sum(fingers)
+        
+        class VideoProcessor:
+            def recv(self, frame):
+                img = frame.to_ndarray(format="bgr24")
+                
+                with mp_hands.Hands(min_detection_confidence=0.7,
+                                    min_tracking_confidence=0.5,
+                                    max_num_hands=1) as hands:
+                    results = hands.process(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+                    
+                    if results.multi_hand_landmarks:
+                        for hand_landmarks in results.multi_hand_landmarks:
+                            mp_drawing.draw_landmarks(img, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+                            
+                            finger_count = count_fingers(hand_landmarks)
+                            current_time = time.time()
+                            
+                            if finger_count == st.session_state.last_gesture:
+                                time_held = current_time - st.session_state.last_gesture_time
+                                if time_held >= 2.0:
+                                    update_score(finger_count)
+                                    gesture_text = f"{finger_count} - CONFIRMED!"
+                                    st.session_state.last_gesture = None
+                                else:
+                                    gesture_text = f"{finger_count} - Hold {2.0-time_held:.1f}s"
+                            else:
+                                st.session_state.last_gesture = finger_count
+                                st.session_state.last_gesture_time = current_time
+                                gesture_text = f"Fingers: {finger_count}"
+                            
+                            cv2.putText(img, gesture_text, (10, 30), 
+                                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                    else:
+                        cv2.putText(img, "Show hand gesture...", (10, 30), 
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (128, 128, 128), 2)
+                        st.session_state.last_gesture = None
+                        reset_gesture_flag()
+                
+                return img
+        
+        RTC_CONFIGURATION = RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
+        
+        webrtc_ctx = webrtc_streamer(
+            key="gesture-detection",
+            mode=WebRtcMode.SENDRECV,
+            rtc_configuration=RTC_CONFIGURATION,
+            video_processor_factory=VideoProcessor,
+            media_stream_constraints={"video": True, "audio": False},
+            async_processing=True,
+        )
+        
+        if webrtc_ctx.video_processor:
+            st.success("🎥 Gesture detection active! Show gestures to camera.")
         
         st.markdown("""
-        **Gesture Instructions:**
-        - Hold gesture for 2 seconds to confirm
+        **Instructions:** Hold gesture for 2 seconds to confirm
         - 0 fingers: Wicket | 1-4 fingers: Runs | 5 fingers: Six
-        - 🤏 Pinch: Dot Ball | 👍 Thumbs Up: No Ball
         """)
         
-    except ImportError:
-        st.error("📹 WebRTC not available - gesture detection disabled")
-        st.info("This feature requires streamlit-webrtc for cloud deployment")
+    except ImportError as e:
+        st.error(f"📹 WebRTC not available: {e}")
+        st.info("Install streamlit-webrtc for gesture detection")
     
     # Quick action buttons
     st.markdown("### ⚡ Quick Actions")
