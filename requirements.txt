@@ -4,3 +4,4 @@ mediapipe==0.10.7
 numpy<2.0.0
 streamlit-webrtc>=0.47.0
 aiortc>=1.6.0
+avfoundation-python
